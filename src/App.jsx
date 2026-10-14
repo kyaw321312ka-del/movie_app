@@ -1,5 +1,6 @@
 import Search from "./components/Search";
-import Spinner from "./components/spinner";
+import Spinner from "./components/Spinner";
+import MovieCard from "./components/MovieCard";
 import { useEffect, useState } from "react";
 
 const API_BASE_URL = "https://api.themoviedb.org/3";
@@ -108,8 +109,6 @@ const App = () => {
       <div className="relative z-10 flex flex-col items-center px-4 sm:px-8 py-12">
         {/* Header */}
         <header className="flex flex-col items-center gap-6 mb-12 max-w-3xl w-full">
-          
-
           <h1 className="text-4xl md:text-6xl font-bold text-center tracking-tight leading-tight">
             Find{" "}
             <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-fuchsia-400 bg-clip-text text-transparent">
@@ -158,41 +157,7 @@ const App = () => {
           ) : (
             <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
               {movieList.map((movie) => (
-                <li
-                  key={movie.id}
-                  className="group relative rounded-xl overflow-hidden bg-white/5 border border-white/10 transition-all duration-300 hover:border-white/20 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/10 cursor-pointer"
-                >
-                  <div className="aspect-[2/3] overflow-hidden bg-slate-800">
-                    {movie.poster_path ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-                        alt={movie.title}
-                        loading="lazy"
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">
-                        No poster
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                  {/* Info */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                    <h3 className="font-semibold text-sm text-white line-clamp-2">
-                      {movie.title}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-300">
-                      <span>{movie.release_date?.slice(0, 4) || "—"}</span>
-                      <span className="text-amber-400">
-                        ★ {movie.vote_average?.toFixed(1) || "N/A"}
-                      </span>
-                    </div>
-                  </div>
-                </li>
+                <MovieCard key={movie.id} movie={movie} />
               ))}
             </ul>
           )}

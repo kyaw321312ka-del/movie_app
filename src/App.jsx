@@ -3,6 +3,7 @@ import Spinner from "./components/spinner";
 import MovieCard from "./components/MovieCard";
 import { useEffect, useState } from "react";
 import { useDebounce } from "react-use";
+import { updateSearchCount } from "./appwrite.js";
 
 const API_BASE_URL = "https://api.themoviedb.org/3";
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
@@ -18,7 +19,7 @@ const App = () => {
       : "TMDB API token is not configured. Set VITE_TMDB_API_KEY in .env.",
   });
 
-  //  Debounce via react-use — replaces the manual setTimeout effect
+  // Debounce via react-use
   useDebounce(() => setDebouncedTerm(searchTerm), 300, [searchTerm]);
 
   useEffect(() => {
@@ -61,6 +62,11 @@ const App = () => {
       try {
         const results = await fetchMovies(debouncedTerm);
         setState({ status: "success", data: results, error: null });
+
+        // ✅ Record the search hit in Appwrite (only when actually searching)
+        if (debouncedTerm.trim() && results.length > 0) {
+          await updateSearchCount(debouncedTerm, results[0]);
+        }
       } catch (error) {
         if (error.name === "AbortError") return;
         console.error("Error fetching movies:", error);

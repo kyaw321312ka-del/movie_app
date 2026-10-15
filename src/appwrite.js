@@ -1,4 +1,4 @@
-import { Client, Databases, ID, Query } from "appwrite";
+import { Client, Databases, Query } from "appwrite";
 
 const PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
@@ -24,38 +24,57 @@ export const updateSearchCount = async (searchTerm, movie) => {
     return;
   }
 
+  const movieId = String(movie.id);
+
   try {
-    // 1. Check if a document for this movie already exists
     const result = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID,
-      [Query.equal("movie_id", String(movie.id))]
+      [Query.equal("movie_id", movieId), Query.limit(1)]
     );
 
-    // 2. If it exists, increment the count
     if (result.documents.length > 0) {
       const doc = result.documents[0];
-      await databases.updateDocument(
+      await databases.incrementDocumentAttribute(
         DATABASE_ID,
         COLLECTION_ID,
         doc.$id,
-        { count: doc.count + 1 }
+        "count",
+        1
       );
     } else {
-      // 3. Otherwise create a new document
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_ID,
-        ID.unique(),
-        {
-          searchTerm,
-          movie_id: String(movie.id),
-          poster_url: movie.poster_path
-            ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-            : "",
-          count: 1,
-        }
-      );
+      try {
+        await databases.createDocument(
+          DATABASE_ID,
+          COLLECTION_ID,
+          movieId,
+          {
+            searchTerm,
+            movie_id: movieId,
+            poster_url: movie.poster_path
+              ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+              : "",
+            count: 1,
+          }
+        );
+      } catch (error) {
+        if (error.code !== 409) throw error;
+
+        const existing = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTION_ID,
+          [Query.equal("movie_id", movieId), Query.limit(1)]
+        );
+        if (existing.documents.length === 0) throw error;
+
+        await databases.incrementDocumentAttribute(
+          DATABASE_ID,
+          COLLECTION_ID,
+          existing.documents[0].$id,
+          "count",
+          1
+        );
+      }
     }
   } catch (error) {
     console.error("Error updating search count:", error);
@@ -74,7 +93,7 @@ export const getTrendingMovies = async () => {
       [
         Query.greaterThanEqual("count", 1),  // optional: require at least 1
         Query.orderDesc("count"),
-        Query.limit(5),                      // top 5 is plenty for a row
+        Query.limit(10),                      // top 5 is plenty for a row10
       ]
     );
     return result.documents;

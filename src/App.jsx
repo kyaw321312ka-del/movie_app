@@ -3,7 +3,7 @@ import Spinner from "./components/spinner";
 import MovieCard from "./components/MovieCard";
 import { useEffect, useState } from "react";
 import { useDebounce } from "react-use";
-import { updateSearchCount } from "./appwrite.js";
+import { updateSearchCount, getTrendingMovies } from "./appwrite.js";
 
 const API_BASE_URL = "https://api.themoviedb.org/3";
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
@@ -11,6 +11,7 @@ const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const App = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedTerm, setDebouncedTerm] = useState("");
+  const [trending, setTrending] = useState([]);
   const [state, setState] = useState({
     status: API_KEY ? "idle" : "error",
     data: [],
@@ -22,6 +23,7 @@ const App = () => {
   // Debounce via react-use
   useDebounce(() => setDebouncedTerm(searchTerm), 300, [searchTerm]);
 
+  // Fetch movies from TMDB whenever the debounced term changes
   useEffect(() => {
     if (!API_KEY) return;
     const controller = new AbortController();
@@ -63,7 +65,7 @@ const App = () => {
         const results = await fetchMovies(debouncedTerm);
         setState({ status: "success", data: results, error: null });
 
-        // ✅ Record the search hit in Appwrite (only when actually searching)
+        // Record the search hit in Appwrite (only when actually searching)
         if (debouncedTerm.trim() && results.length > 0) {
           await updateSearchCount(debouncedTerm, results[0]);
         }
@@ -80,6 +82,13 @@ const App = () => {
 
     run();
     return () => controller.abort();
+  }, [debouncedTerm]);
+
+  // Load trending searches from Appwrite (refresh after each search)
+  useEffect(() => {
+    getTrendingMovies()
+      .then(setTrending)
+      .catch((err) => console.error("Trending fetch failed:", err));
   }, [debouncedTerm]);
 
   const isLoading = state.status === "loading" || state.status === "idle";
@@ -125,6 +134,91 @@ const App = () => {
 
       {/* ===== Results ===== */}
       <section className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-8 pb-20">
+        {/* ===== Trending row (only shown when idle) ===== */}
+        {!debouncedTerm && trending.length > 0 && (
+          <div className="mb-14">
+            {/* Section header */}
+            <div className="flex items-center gap-3 mb-6">
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-amber-400 to-orange-500" />
+              <h2 className="text-xl md:text-2xl font-semibold text-white">
+                 Trending Searches
+              </h2>
+              <span className="ml-auto text-xs text-slate-500 uppercase tracking-widest">
+                Top 5 this week
+              </span>
+            </div>
+
+            {/* Ranked row */}
+            <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+              {trending.map((doc, index) => {
+                const rank = index + 1;
+                const isTop3 = rank <= 3;
+                const rankColor =
+                  rank === 1
+                    ? "from-amber-300 to-yellow-500"
+                    : rank === 2
+                    ? "from-slate-200 to-slate-400"
+                    : rank === 3
+                    ? "from-orange-400 to-amber-600"
+                    : "from-slate-600 to-slate-700";
+
+                return (
+                  <li
+                    key={doc.$id}
+                    className="group relative rounded-xl overflow-hidden bg-white/5 border border-white/10 transition-all duration-300 hover:border-white/25 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/10 cursor-pointer"
+                  >
+                    {/* Poster */}
+                    <div className="aspect-[2/3] overflow-hidden bg-slate-800">
+                      {doc.poster_url ? (
+                        <img
+                          src={doc.poster_url}
+                          alt={doc.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-500 text-sm">
+                          No poster
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Big rank number */}
+                    <div
+                      className={`absolute -top-3 -left-1 text-[88px] leading-none font-black bg-gradient-to-b ${rankColor} bg-clip-text text-transparent drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] pointer-events-none select-none z-10`}
+                      style={{ WebkitTextStroke: "2px rgba(0,0,0,0.55)" }}
+                    >
+                      {rank}
+                    </div>
+
+                    {/* Count badge (top-right) — only for ranks below top-3 */}
+                    {!isTop3 && (
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[10px] font-semibold text-slate-200">
+                        {doc.count}×
+                      </div>
+                    )}
+
+                    {/* Hover gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                    {/* Info */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                      <h3 className="font-semibold text-sm text-white line-clamp-2">
+                        {doc.title}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">
+                        searched {doc.count}{" "}
+                        {doc.count === 1 ? "time" : "times"}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* ===== Main results header ===== */}
         <div className="flex items-end justify-between mb-6">
           <h2 className="text-xl md:text-2xl font-semibold text-white">
             {debouncedTerm ? (
@@ -143,6 +237,7 @@ const App = () => {
           )}
         </div>
 
+        {/* ===== Main results body ===== */}
         {isLoading ? (
           <Spinner />
         ) : errorMessage ? (
